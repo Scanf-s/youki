@@ -225,7 +225,6 @@ fn create_container_dev_path(rootfs: &Path, dev: &LinuxDevice) -> Result<PathBuf
 
 #[cfg(test)]
 mod tests {
-    use std::os::fd::IntoRawFd;
     use std::os::linux::fs::MetadataExt;
     use std::path::PathBuf;
 
@@ -384,7 +383,7 @@ mod tests {
     fn test_open_device_fd() -> Result<()> {
         let result = open_device_fd(Path::new("/dev/null"))?;
 
-        // Get file type from st_node (remove authority bits, bitmasking by using S_IFMT flag)
+        // Get file type from st_node (remove permission bits, bitmasking by using S_IFMT flag)
         let file_type = result.1.st_mode & libc::S_IFMT;
         assert_eq!(file_type, libc::S_IFCHR);
 
@@ -392,10 +391,29 @@ mod tests {
         assert_eq!(std::fs::metadata("/dev/null")?.st_ino(), result.1.st_ino);
 
         // Verify file descriptor
-        assert!(result.0.into_raw_fd() >= 0);
+        assert!(result.0.as_raw_fd() >= 0);
 
         // Check verify_dev_null works properly
         assert!(verify_dev_null(&result.1).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_dev_null_rejects_regular_file() -> Result<()> {
+        let file = tempfile::tempfile()?;
+        let stat = fstat(file.as_raw_fd())?;
+        assert!(verify_dev_null(&stat).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_dev_null_rejets_invalid_device() -> Result<()> {
+        use std::fs::File;
+
+        // dev/zero has major(1):minor(5)
+        let zero = File::open("/dev/zero")?;
+        let stat = fstat(zero.as_raw_fd())?;
+        assert!(verify_dev_null(&stat).is_err());
         Ok(())
     }
 }
