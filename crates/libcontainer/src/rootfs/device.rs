@@ -225,6 +225,8 @@ fn create_container_dev_path(rootfs: &Path, dev: &LinuxDevice) -> Result<PathBuf
 
 #[cfg(test)]
 mod tests {
+    use std::os::fd::IntoRawFd;
+    use std::os::linux::fs::MetadataExt;
     use std::path::PathBuf;
 
     use anyhow::Result;
@@ -375,6 +377,25 @@ mod tests {
             .get_mknod_args()[0];
         assert_eq!(want, *got);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_open_device_fd() -> Result<()> {
+        let result = open_device_fd(Path::new("/dev/null"))?;
+
+        // Get file type from st_node (remove authority bits, bitmasking by using S_IFMT flag)
+        let file_type = result.1.st_mode & libc::S_IFMT;
+        assert_eq!(file_type, libc::S_IFCHR);
+
+        // Check open_device_fd returns proper inode
+        assert_eq!(std::fs::metadata("/dev/null")?.st_ino(), result.1.st_ino);
+
+        // Verify file descriptor
+        assert!(result.0.into_raw_fd() >= 0);
+
+        // Check verify_dev_null works properly
+        assert!(verify_dev_null(&result.1).is_ok());
         Ok(())
     }
 }
