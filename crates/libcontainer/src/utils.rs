@@ -705,21 +705,19 @@ mod tests {
             ("/a/b/c", "/a/b/c"),
             ("/a/./b", "/a/b"),
             ("/a/b/../c", "/a/c"),
-            ("/proc/self/../1", "/proc/1"),
-            
+            ("/asd/dfg/../gjoi", "/asd/gjoi"),
             // paths processed first by components()
             ("/a/b/", "/a/b"),
             ("/a//b", "/a/b"),
-
             // relative paths
             ("", ""),
             (".", ""),
             ("..", ""),
+            // Leading '..' is just dropped under current logic, leaving only 'a'
             ("../a", "a"),
             ("a/../../b", "b"),
             ("./a/b", "a/b"),
             ("a/b/../..", ""),
-            
             // root escape check
             ("/..", "/"),
             ("/../..", "/"),
