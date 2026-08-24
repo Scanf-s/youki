@@ -95,6 +95,8 @@ impl PathBufExt for Path {
     // adapted from https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61
     fn normalize(&self) -> PathBuf {
         let mut components = self.components().peekable();
+
+        // Check if the path has Windows prefix
         let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
             components.next();
             PathBuf::from(c.as_os_str())
@@ -692,5 +694,39 @@ mod tests {
         assert!(
             matches!(result, Err(VerifyInodeError::Verification(error_message)) if error_message == "error")
         )
+    }
+
+    #[test]
+    fn test_normalize_path() {
+        // This test checks a path normalization method
+
+        let cases = [
+            // ordinary paths
+            ("/a/b/c", "/a/b/c"),
+            ("/a/./b", "/a/b"),
+            ("/a/b/../c", "/a/c"),
+            ("/proc/self/../1", "/proc/1"),
+            
+            // paths processed first by components()
+            ("/a/b/", "/a/b"),
+            ("/a//b", "/a/b"),
+
+            // relative paths
+            ("", ""),
+            (".", ""),
+            ("..", ""),
+            ("../a", "a"),
+            ("a/../../b", "b"),
+            ("./a/b", "a/b"),
+            ("a/b/../..", ""),
+            
+            // root escape check
+            ("/..", "/"),
+            ("/../..", "/"),
+            ("/a/../../b", "/b"),
+        ];
+        for (input, answer) in cases {
+            assert_eq!(Path::new(input).normalize(), Path::new(answer));
+        }
     }
 }
