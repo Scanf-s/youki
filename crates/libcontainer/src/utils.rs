@@ -96,7 +96,6 @@ impl PathBufExt for Path {
     fn normalize(&self) -> PathBuf {
         let mut components = self.components().peekable();
 
-        // Check if the path has Windows prefix
         let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
             components.next();
             PathBuf::from(c.as_os_str())
