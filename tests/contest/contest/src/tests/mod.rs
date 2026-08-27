@@ -49,6 +49,7 @@ pub mod seccomp;
 pub mod seccomp_notify;
 pub mod state;
 pub mod sysctl;
+pub mod terminal;
 pub mod time_ns;
 pub mod tlb;
 pub mod uid_mappings;
