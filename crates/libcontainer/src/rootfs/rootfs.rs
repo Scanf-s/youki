@@ -31,6 +31,11 @@ impl RootFS {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_with_syscall(syscall: Box<dyn Syscall>) -> RootFS {
+        RootFS { syscall }
+    }
+
     pub fn mount_to_rootfs(
         &self,
         linux: &Linux,
@@ -147,6 +152,107 @@ impl RootFS {
                 })?;
         }
 
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::path::PathBuf;
+
+    use anyhow::Result;
+    use nix::mount::MsFlags;
+    use oci_spec::runtime::LinuxBuilder;
+
+    use crate::rootfs::RootFS;
+    use crate::syscall::test::{MountArgs, TestHelperSyscall};
+
+    #[test]
+    fn test_shared_root_mount_propagation() -> Result<()> {
+        // Create OCI Spec with propagation option 'shared'
+        let linux_spec = LinuxBuilder::default()
+            .rootfs_propagation("shared")
+            .build()?;
+
+        // Build mock rootfs
+        let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
+        rootfs.adjust_root_mount_propagation(&linux_spec)?;
+
+        // Get mount calls from mock
+        let helper = rootfs
+            .syscall
+            .as_any()
+            .downcast_ref::<TestHelperSyscall>()
+            .expect("RootFS should contain TestHelperSyscall");
+        let mount_args = helper.get_mount_args();
+
+        assert_eq!(
+            mount_args,
+            vec![MountArgs {
+                source: None,
+                target: PathBuf::from("/"),
+                fstype: None,
+                flags: MsFlags::MS_SHARED,
+                data: None,
+            }]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_unbindable_root_mount_propagation() -> Result<()> {
+        // Create OCI Spec with propagation option 'shared'
+        let linux_spec = LinuxBuilder::default()
+            .rootfs_propagation("unbindable")
+            .build()?;
+
+        // Build mock rootfs
+        let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
+        rootfs.adjust_root_mount_propagation(&linux_spec)?;
+
+        // Get mount calls from mock
+        let helper = rootfs
+            .syscall
+            .as_any()
+            .downcast_ref::<TestHelperSyscall>()
+            .expect("RootFS should contain TestHelperSyscall");
+        let mount_args = helper.get_mount_args();
+
+        assert_eq!(
+            mount_args,
+            vec![MountArgs {
+                source: None,
+                target: PathBuf::from("/"),
+                fstype: None,
+                flags: MsFlags::MS_UNBINDABLE,
+                data: None,
+            }]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_ignore_slave_root_mount_propagation() -> Result<()> {
+        // Create OCI Spec with propagation option with 'slave'
+        let linux_spec = LinuxBuilder::default()
+            .rootfs_propagation("slave")
+            .build()?;
+
+        // Build mock rootfs
+        let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
+
+        // adjust_root_mount_propagation should ignore this option
+        rootfs.adjust_root_mount_propagation(&linux_spec)?;
+
+        // Get mount calls from mock
+        let helper = rootfs
+            .syscall
+            .as_any()
+            .downcast_ref::<TestHelperSyscall>()
+            .unwrap();
+
+        assert!(helper.get_mount_args().is_empty());
         Ok(())
     }
 }
