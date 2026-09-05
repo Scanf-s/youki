@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_unbindable_root_mount_propagation() -> Result<()> {
-        // Create OCI Spec with propagation option 'shared'
+        // Create OCI Spec with propagation option 'unbindable'
         let linux_spec = LinuxBuilder::default()
             .rootfs_propagation("unbindable")
             .build()?;
