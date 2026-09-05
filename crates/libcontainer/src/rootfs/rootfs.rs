@@ -168,12 +168,17 @@ mod tests {
     use crate::rootfs::RootFS;
     use crate::syscall::test::{MountArgs, TestHelperSyscall};
 
-    #[test]
-    fn test_shared_root_mount_propagation() -> Result<()> {
-        // Create OCI Spec with propagation option 'shared'
-        let linux_spec = LinuxBuilder::default()
-            .rootfs_propagation("shared")
-            .build()?;
+    // helper function for adjust_root_mount_propagation unit tests
+    fn assert_root_mount_propagation(
+        propagation_option: Option<&str>,
+        expected_flags: Option<MsFlags>,
+    ) -> Result<()> {
+        // Create OCI Spec with propagation option
+        let mut linux_builder = LinuxBuilder::default();
+        if let Some(propagation) = propagation_option {
+            linux_builder = linux_builder.rootfs_propagation(propagation);
+        }
+        let linux_spec = linux_builder.build()?;
 
         // Build mock rootfs
         let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
@@ -187,72 +192,43 @@ mod tests {
             .expect("RootFS should contain TestHelperSyscall");
         let mount_args = helper.get_mount_args();
 
-        assert_eq!(
-            mount_args,
-            vec![MountArgs {
-                source: None,
-                target: PathBuf::from("/"),
-                fstype: None,
-                flags: MsFlags::MS_SHARED,
-                data: None,
-            }]
-        );
+        if let Some(flag) = expected_flags {
+            assert_eq!(
+                mount_args,
+                vec![MountArgs {
+                    source: None,
+                    target: PathBuf::from("/"),
+                    fstype: None,
+                    flags: flag,
+                    data: None,
+                }]
+            );
+        } else {
+            assert!(
+                mount_args.is_empty(),
+                "expected no mount calls, but mount was called with {mount_args:?}"
+            )
+        }
         Ok(())
+    }
+
+    #[test]
+    fn test_shared_root_mount_propagation() -> Result<()> {
+        assert_root_mount_propagation(Some("shared"), Some(MsFlags::MS_SHARED))
     }
 
     #[test]
     fn test_unbindable_root_mount_propagation() -> Result<()> {
-        // Create OCI Spec with propagation option 'unbindable'
-        let linux_spec = LinuxBuilder::default()
-            .rootfs_propagation("unbindable")
-            .build()?;
-
-        // Build mock rootfs
-        let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
-        rootfs.adjust_root_mount_propagation(&linux_spec)?;
-
-        // Get mount calls from mock
-        let helper = rootfs
-            .syscall
-            .as_any()
-            .downcast_ref::<TestHelperSyscall>()
-            .expect("RootFS should contain TestHelperSyscall");
-        let mount_args = helper.get_mount_args();
-
-        assert_eq!(
-            mount_args,
-            vec![MountArgs {
-                source: None,
-                target: PathBuf::from("/"),
-                fstype: None,
-                flags: MsFlags::MS_UNBINDABLE,
-                data: None,
-            }]
-        );
-        Ok(())
+        assert_root_mount_propagation(Some("unbindable"), Some(MsFlags::MS_UNBINDABLE))
     }
 
     #[test]
     fn test_ignore_slave_root_mount_propagation() -> Result<()> {
-        // Create OCI Spec with propagation option with 'slave'
-        let linux_spec = LinuxBuilder::default()
-            .rootfs_propagation("slave")
-            .build()?;
+        assert_root_mount_propagation(Some("slave"), None)
+    }
 
-        // Build mock rootfs
-        let rootfs = RootFS::new_with_syscall(Box::<TestHelperSyscall>::default());
-
-        // adjust_root_mount_propagation should ignore this option
-        rootfs.adjust_root_mount_propagation(&linux_spec)?;
-
-        // Get mount calls from mock
-        let helper = rootfs
-            .syscall
-            .as_any()
-            .downcast_ref::<TestHelperSyscall>()
-            .unwrap();
-
-        assert!(helper.get_mount_args().is_empty());
-        Ok(())
+    #[test]
+    fn test_ignore_none_inputs_on_root_mount_propagation() -> Result<()> {
+        assert_root_mount_propagation(None, None)
     }
 }
