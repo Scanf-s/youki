@@ -95,7 +95,6 @@ impl PathBufExt for Path {
     // adapted from https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61
     fn normalize(&self) -> PathBuf {
         let mut components = self.components().peekable();
-
         let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
             components.next();
             PathBuf::from(c.as_os_str())
