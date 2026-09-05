@@ -711,7 +711,6 @@ mod tests {
             ("", ""),
             (".", ""),
             ("..", ""),
-            // Leading '..' is just dropped under current logic, leaving only 'a'
             ("../a", "a"),
             ("a/../../b", "b"),
             ("./a/b", "a/b"),
